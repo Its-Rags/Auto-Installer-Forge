@@ -59,6 +59,14 @@ on:
         options:
           - Dirty Flash (Update only - keeps user data)
           - Clean Flash (Factory reset - wipes all data)
+      verify_super:
+        description: 'Verify super.img integrity? (Extracts & hashes, takes MUCH longer)'
+        required: true
+        default: 'No'
+        type: choice
+        options:
+          - 'Yes'
+          - 'No'
       install_twrp:
         description: 'Integrate TWRP? (ONLY if kernel supports it! Else bootloop to fastboot)'
         required: true
@@ -152,6 +160,15 @@ jobs:
           esac
           echo "FORMAT_MODE=$FORMAT_MODE" >> $GITHUB_ENV
 
+          if [ "${{ github.event.inputs.verify_super }}" == "Yes" ]; then
+            VERIFY_SUPER=1
+            VERIFY_LABEL="Yes"
+          else
+            VERIFY_SUPER=0
+            VERIFY_LABEL="No (Faster)"
+          fi
+          echo "VERIFY_SUPER=$VERIFY_SUPER" >> $GITHUB_ENV
+
           if [ "${{ github.event.inputs.install_twrp }}" == "Yes" ]; then
             INSTALL_TWRP=1
             TWRP_LABEL="Yes (Kernel Must Support It)"
@@ -163,6 +180,7 @@ jobs:
 
           echo "Root method selected: $ROOT_LABEL"
           echo "Format type selected: $FORMAT_LABEL"
+          echo "Verify Super.img selected: $VERIFY_LABEL"
           echo "Install TWRP selected: $TWRP_LABEL"
 
       - name: Generate autoinstaller.conf
@@ -209,6 +227,7 @@ jobs:
           )
           
           FORMAT_DEFAULT=${{ env.FORMAT_MODE }}  # set 1 if want format default selected 
+          VERIFY_SUPER=${{ env.VERIFY_SUPER }}
           INSTALL_TWRP=${{ env.INSTALL_TWRP }}
           SELECTION_TIMEOUT=15  # Seconds to wait before auto-selecting default menu option
           CHAR_WIDTH=54  		  # Max characters per printed line (used for text centering and wrapping)

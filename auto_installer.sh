@@ -699,7 +699,6 @@ if [ "$ROM_TYPE" = "payload" ]; then
     fi
     mv "$TARGET_DIR"/extracted_*/* "$TARGET_DIR"/
     rm -rf "$TARGET_DIR"/extracted_*
-    FILES_TO_CLEANUP=("$PAYLOAD_FILE")
 
 else
     log "[INFO] Fastboot ROM detected. Extracting all files Please wait..."
@@ -793,28 +792,49 @@ else
 
     rm "$TARGET_DIR/super.img"
     $BIN_DIR/busybox find "$TARGET_DIR" -maxdepth 1 -name "*_b.img" -type f -size 0c -delete
-    FILES_TO_CLEANUP=() 
     log "[SUCCESS] Fastboot images prepared."
 fi
 log "[SUCCESS] Extraction completed."
 
-log "[INFO] Generating original checksums..."
+log "[INFO] Renaming partition images for super.img..."
 for img in system vendor mi_ext odm system_ext product; do
     if [ -f "$TARGET_DIR/${img}.img" ]; then
         $BIN_DIR/busybox mv "$TARGET_DIR/${img}.img" "$TARGET_DIR/${img}_a.img"
     fi
 done
-checksum_files=()
+
+part_files=()
 for img in system vendor mi_ext odm system_ext product; do
     if [ -f "$TARGET_DIR/${img}_a.img" ]; then
-        checksum_files+=("$TARGET_DIR/${img}_a.img")
+        part_files+=("$TARGET_DIR/${img}_a.img")
     fi
 done
-$BIN_DIR/busybox sha256sum "${checksum_files[@]}" > "$TARGET_DIR/original_checksums.txt"
-echo -e "[SUCCESS] Checksums generated."
+
+if [ -n "$2" ] && [ -f "$2" ]; then
+    VERIFY_SUPER=$(grep '^VERIFY_SUPER=' "$2" | awk -F'=' '{print $2}' | awk '{print $1}')
+else
+    echo -e "\nVerify super.img integrity? (Extracts & hashes to ensure no corruption, but takes MUCH longer):"
+    echo -e "1) Yes (Slower, but safe)"
+    echo -e "2) No (Blazing fast, skips verification)\n"
+    while true; do
+        echo -n "Enter the number (1-2): "
+        read -r VERIFY_CHOICE
+        case $VERIFY_CHOICE in
+            1) VERIFY_SUPER=1; echo; break ;;
+            2) VERIFY_SUPER=0; echo; break ;;
+            *) echo -e "Invalid input. Please enter 1 or 2.\n" ;;
+        esac
+    done
+fi
+
+if [ "${VERIFY_SUPER:-0}" -eq 1 ]; then
+    log "[INFO] Generating original checksums..."
+    $BIN_DIR/busybox sha256sum "${part_files[@]}" > "$TARGET_DIR/original_checksums.txt"
+    echo -e "[SUCCESS] Checksums generated."
+fi
 
 log "[INFO] Calculating total partition size with buffer..."
-TOTAL_SIZE=$($BIN_DIR/busybox du -b "${checksum_files[@]}" | $BIN_DIR/busybox awk '{sum += $1} END {print sum + (24 * 1024 * 1024); exit}')
+TOTAL_SIZE=$($BIN_DIR/busybox du -b "${part_files[@]}" | $BIN_DIR/busybox awk '{sum += $1} END {print sum + (24 * 1024 * 1024); exit}')
 echo -e "Total size (with buffer): $TOTAL_SIZE"
 
 log "[INFO] Creating super.img..."
@@ -859,42 +879,46 @@ echo -e "[SUCCESS] Truncation complete."
 
 log "[INFO] Cleaning up payload.bin extracted img's..."
 if [ -n "$PAYLOAD_FILE" ]; then
-    rm_files=("${checksum_files[@]}" "$PAYLOAD_FILE")
+    rm_files=("${part_files[@]}" "$PAYLOAD_FILE")
 else
-    rm_files=("${checksum_files[@]}")
+    rm_files=("${part_files[@]}")
 fi
 $BIN_DIR/busybox rm -f "${rm_files[@]}"
 echo -e "[SUCCESS] Cleanup complete."
 
-log "[INFO] Extracting super.img..."
-$BIN_DIR/busybox mkdir -p "$TARGET_DIR/super_extracted"
-$BIN_DIR/lpunpack "$TARGET_DIR/super.img" "$TARGET_DIR/super_extracted" || { log "[ERROR] Extraction failed!"; exit 1; }
-echo -e "[SUCCESS] super.img extracted."
+if [ "${VERIFY_SUPER:-0}" -eq 1 ]; then
+    log "[INFO] Verifying super.img integrity (Extract & Hash)..."
+    $BIN_DIR/busybox mkdir -p "$TARGET_DIR/super_extracted"
+    $BIN_DIR/lpunpack "$TARGET_DIR/super.img" "$TARGET_DIR/super_extracted" || { log "[ERROR] Extraction failed!"; exit 1; }
+    echo -e "[SUCCESS] super.img extracted."
 
-log "[INFO] Generating new checksums..."
-new_checksum_files=()
-for img in system vendor mi_ext odm system_ext product; do
-    if [ -f "$TARGET_DIR/super_extracted/${img}_a.img" ]; then
-        new_checksum_files+=("$TARGET_DIR/super_extracted/${img}_a.img")
-    fi
-done
-$BIN_DIR/busybox sha256sum "${new_checksum_files[@]}" > "$TARGET_DIR/new_checksums.txt"
-echo -e "[SUCCESS] Checksums generated."
+    log "[INFO] Generating new checksums..."
+    new_checksum_files=()
+    for img in system vendor mi_ext odm system_ext product; do
+        if [ -f "$TARGET_DIR/super_extracted/${img}_a.img" ]; then
+            new_checksum_files+=("$TARGET_DIR/super_extracted/${img}_a.img")
+        fi
+    done
+    $BIN_DIR/busybox sha256sum "${new_checksum_files[@]}" > "$TARGET_DIR/new_checksums.txt"
+    echo -e "[SUCCESS] Checksums generated."
 
-log "[INFO] Normalizing checksums for comparison..."
-$BIN_DIR/busybox sed -E "s|(_a)?\.img|.img|" "$TARGET_DIR/original_checksums.txt" | $BIN_DIR/busybox sed -E "s|$TARGET_DIR|/tmp|" > "$TARGET_DIR/original_checksums_norm.txt"
-$BIN_DIR/busybox sed -E "s|(_a)?\.img|.img|" "$TARGET_DIR/new_checksums.txt" | $BIN_DIR/busybox sed -E "s|$TARGET_DIR/super_extracted|/tmp|" > "$TARGET_DIR/new_checksums_norm.txt"
+    log "[INFO] Normalizing checksums for comparison..."
+    $BIN_DIR/busybox sed -E "s|(_a)?\.img|.img|" "$TARGET_DIR/original_checksums.txt" | $BIN_DIR/busybox sed -E "s|$TARGET_DIR|/tmp|" > "$TARGET_DIR/original_checksums_norm.txt"
+    $BIN_DIR/busybox sed -E "s|(_a)?\.img|.img|" "$TARGET_DIR/new_checksums.txt" | $BIN_DIR/busybox sed -E "s|$TARGET_DIR/super_extracted|/tmp|" > "$TARGET_DIR/new_checksums_norm.txt"
 
-log "[INFO] Comparing checksums..."
-$BIN_DIR/busybox diff "$TARGET_DIR/original_checksums_norm.txt" "$TARGET_DIR/new_checksums_norm.txt" || log "[WARNING] Checksum mismatch detected!"
-echo -e "[SUCCESS] Checksum comparison complete."
+    log "[INFO] Comparing checksums..."
+    $BIN_DIR/busybox diff "$TARGET_DIR/original_checksums_norm.txt" "$TARGET_DIR/new_checksums_norm.txt" || log "[WARNING] Checksum mismatch detected!"
+    echo -e "[SUCCESS] Checksum comparison complete."
+    
+    log "[INFO] Cleaning up verification files..."
+    $BIN_DIR/busybox rm -rf "$TARGET_DIR/super_extracted"
+    $BIN_DIR/busybox rm -f "$TARGET_DIR/original_checksums.txt" "$TARGET_DIR/new_checksums.txt" "$TARGET_DIR/original_checksums_norm.txt" "$TARGET_DIR/new_checksums_norm.txt" 
+    echo -e "[SUCCESS] Verification cleanup complete."
+else
+    log "[INFO] Skipping super.img verification (Fast Mode enabled)."
+fi
 
 log "[COMPLETED] super.img prepared to use in fastboot/recovery!"
-
-log "[INFO] Cleaning up..."
-$BIN_DIR/busybox rm -rf "$TARGET_DIR/super_extracted"
-$BIN_DIR/busybox rm -f "$TARGET_DIR/original_checksums.txt" "$TARGET_DIR/new_checksums.txt" "$TARGET_DIR/original_checksums_norm.txt" "$TARGET_DIR/new_checksums_norm.txt" 
-echo -e "[SUCCESS] Cleanup complete."
 
 log "[INFO] Now will contrust folder/files and Download Scripts as required for Auto Installer!\n"
 
@@ -1181,6 +1205,8 @@ else
     [ "$FORMAT_MODE" -eq 1 ] && FORMAT_MODE=0 || FORMAT_MODE=1
     $BIN_DIR/busybox sed -i "s/^FORMAT_DEFAULT=.*/FORMAT_DEFAULT=$FORMAT_MODE  # set 1 if want format default selected/" "$CONF_FILE"
 fi
+$BIN_DIR/busybox sed -i "s/^VERIFY_SUPER=.*/VERIFY_SUPER=${VERIFY_SUPER:-0}  # set 1 to enable slow super.img extraction and hashing/" "$CONF_FILE"
+
 case "$ROOT_TYPE" in
   0) root="Root with (KSU-N - Kernel SU NEXT)"
     log "[INFO] Selected Kernel SU NEXT v3.1.0, Downloading APK..."
