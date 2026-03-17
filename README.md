@@ -33,9 +33,9 @@
 cd && mkdir -p ~/Auto-Installer-Forge && cd ~/Auto-Installer-Forge && curl -sSL -o auto_installer.sh https://raw.githubusercontent.com/arkt-7/Auto-Installer-Forge/main/auto_installer.sh && chmod +x auto_installer.sh && ./auto_installer.sh
 ```
 
-### 🤖 Android Shell (ARM64)
+### 🤖 Android Shell (ARM64) (WIP)
 
-**For `Termux` or ADB `shell` with root access:**
+**~~For `Termux` or ADB `shell` with root access~~: Soon TM 🙂‍↔️ huh? (idk really)...**
 
 ```bash
 su -c "cd / && mkdir -p /tmp/Auto-Installer-Forge && cd /tmp/Auto-Installer-Forge && curl -sSL -o auto_installer https://raw.githubusercontent.com/arkt-7/Auto-Installer-Forge/main/auto_installer && chmod +x auto_installer && ./auto_installer"
