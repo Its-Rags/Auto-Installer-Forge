@@ -7,7 +7,7 @@
 # Define URLs and target paths for binaries
 BASE_URL="https://raw.githubusercontent.com/arkt-7/Auto-Installer-Forge/main"
 URL_BUSYBOX="$BASE_URL/bin/linux_amd64/busybox"
-URL_PAYLOAD_DUMPER="$BASE_URL/bin/linux_amd64/payload-dumper-go"
+URL_PAYLOAD_DUMPER="$BASE_URL/bin/linux_amd64/otaripper"
 URL_LPMAKE="$BASE_URL/bin/linux_amd64/lpmake"
 URL_LPUNPACK="$BASE_URL/bin/linux_amd64/lpunpack"
 URL_FIGLET="$BASE_URL/bin/linux_amd64/figlet"
@@ -592,7 +592,7 @@ fi
 
 # Download required binaries
 download_and_set_permissions "$URL_BUSYBOX" "$BIN_DIR/busybox"
-download_and_set_permissions "$URL_PAYLOAD_DUMPER" "$BIN_DIR/payload-dumper-go"
+download_and_set_permissions "$URL_PAYLOAD_DUMPER" "$BIN_DIR/otaripper"
 download_and_set_permissions "$URL_LPMAKE" "$BIN_DIR/lpmake"
 download_and_set_permissions "$URL_LPUNPACK" "$BIN_DIR/lpunpack"
 download_and_set_permissions "$URL_FIGLET" "$BIN_DIR/figlet"
@@ -692,11 +692,13 @@ if [ "$ROM_TYPE" = "payload" ]; then
     log "[INFO] Extracting payload.bin..."
     echo " "
     if [ -n "$1" ]; then
-        $BIN_DIR/payload-dumper-go -l "$PAYLOAD_FILE"
-        $BIN_DIR/payload-dumper-go -o "$TARGET_DIR" "$PAYLOAD_FILE" > /dev/null 2>&1 || { log "[ERROR] Extraction failed!"; exit 1; }
+        $BIN_DIR/otaripper -l "$PAYLOAD_FILE"
+        $BIN_DIR/otaripper -n -o "$TARGET_DIR" "$PAYLOAD_FILE" > /dev/null 2>&1 || { log "[ERROR] Extraction failed!"; exit 1; }
     else
-        $BIN_DIR/payload-dumper-go -o "$TARGET_DIR" "$PAYLOAD_FILE" || { log "[ERROR] Extraction failed!"; exit 1; }
+        $BIN_DIR/otaripper -n -o "$TARGET_DIR" "$PAYLOAD_FILE" || { log "[ERROR] Extraction failed!"; exit 1; }
     fi
+    mv "$TARGET_DIR"/extracted_*/* "$TARGET_DIR"/
+    rm -rf "$TARGET_DIR"/extracted_*
     FILES_TO_CLEANUP=("$PAYLOAD_FILE")
 
 else
@@ -1157,11 +1159,11 @@ else
     echo -e "3) With root (SukiSU-Ultra)"
     echo -e "4) Without root\n"
     while true; do
-    echo -n "Enter the number (1-4): "
+    echo -n "Enter the number (0-4): "
     read -r ROOT_TYPE
     case $ROOT_TYPE in
-        [1-4]) echo; break ;;
-        *) echo -e "Invalid input. Please enter a number between 1 and 4.\n" ;;
+        [0-4]) echo; break ;;
+        *) echo -e "Invalid input. Please enter a number between 0 and 4.\n" ;;
     esac
     done
 
@@ -1180,8 +1182,16 @@ else
     $BIN_DIR/busybox sed -i "s/^FORMAT_DEFAULT=.*/FORMAT_DEFAULT=$FORMAT_MODE  # set 1 if want format default selected/" "$CONF_FILE"
 fi
 case "$ROOT_TYPE" in
+  0) root="Root with (KSU-N - Kernel SU NEXT)"
+    log "[INFO] Selected Kernel SU NEXT v3.1.0, Downloading APK..."
+    download_with_fallback \
+        "https://github.com/KernelSU-Next/KernelSU-Next/releases/download/v3.1.0/KernelSU_Next_v3.1.0-spoofed_33024-release.apk" \
+        "$BASE_URL/files/KernelSU_Next_v3.1.0.apk" \
+        "$TARGET_DIR/ROOT_APK_INSATLL_THIS_ONLY/KernelSU_Next_v3.1.0.apk" \
+        "KernelSU_Next_v3.1.0.apk"
+    ;;
   1) root="Root with (KSU-N - Kernel SU NEXT)"
-    log "[INFO] Selected Kernel SU NEXT, Downloading APK..."
+    log "[INFO] Selected Kernel SU NEXT v1.1.1, Downloading APK..."
     download_with_fallback \
         "https://github.com/KernelSU-Next/KernelSU-Next/releases/download/v1.1.1/KernelSU_Next_v1.1.1_12851-release.apk" \
         "$BASE_URL/files/KernelSU_Next_v1.1.1.apk" \
