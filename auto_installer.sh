@@ -1075,10 +1075,10 @@ log "[INFO] Now will Download KernelSU NEXT and Magisk APK for ROOT access!\n"
 #     "KernelSU_Next_v1.1.1.apk"
 
 download_with_fallback \
-    "https://github.com/topjohnwu/Magisk/releases/download/v30.6/Magisk-v30.6.apk" \
-    "$BASE_URL/files/Magisk_v30.6.apk" \
-    "$TARGET_DIR/ROOT_APK_INSATLL_THIS_ONLY/Magisk_v30.6.apk" \
-    "Magisk-v30.6.apk"
+    "https://github.com/topjohnwu/Magisk/releases/download/v30.7/Magisk-v30.7.apk" \
+    "$BASE_URL/files/Magisk_v30.7.apk" \
+    "$TARGET_DIR/ROOT_APK_INSATLL_THIS_ONLY/Magisk_v30.7.apk" \
+    "Magisk-v30.7.apk"
 
 
 CONF_FILE="$TARGET_DIR/META-INF/autoinstaller.conf"
@@ -1089,9 +1089,9 @@ else
     echo -e "\nUsing default $CONF_FILE"
 fi
 
-extract_magisk_tools "Magisk_v30.6.apk"
+extract_magisk_tools "Magisk_v30.7.apk"
 patch_twrp_recovery "$2"
-patch_magisk_boot "Magisk_v30.6.apk"
+patch_magisk_boot "Magisk_v30.7.apk"
 
 IMAGES_DIR="$TARGET_DIR/images"
 
