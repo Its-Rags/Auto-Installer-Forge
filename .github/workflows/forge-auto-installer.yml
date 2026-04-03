@@ -88,19 +88,19 @@ jobs:
         id: PeekXtract_check
         run: |
           echo "Downloading PeekXtract..."
-          curl -L -o PeekXtract https://github.com/ArKT-7/PeekXtract/releases/download/v2.0.3/PeekXtract
+          curl -L -o PeekXtract https://github.com/ArKT-7/PeekXtract/releases/download/v2.0.4/PeekXtract
           chmod +x PeekXtract
           URL="${{ github.event.inputs.rom_zip_url }}"
           echo "Scanning Remote ZIP: $URL"
 
           set +e
-          echo "q" | ./PeekXtract "$URL" 2>&1 | tee PeekXtract_log.txt
+          ./PeekXtract "$URL" --e-txt 2>&1 | tee PeekXtract_log.txt
           set -e
           echo "Analyzing PeekXtract results..."
           
-          if grep -Fq "Download Options:" PeekXtract_log.txt; then
+          if grep -Fq "Export complete" PeekXtract_log.txt; then
               echo "PeekXtract successfully inspected the ZIP."
-              if grep -qE "payload\.bin|super\.(img|zst|img\.zst)" PeekXtract_log.txt; then
+              if grep -qE "payload\.bin|super\.(img|zst|img\.zst)" peekxtract_files_dump.txt; then
                   echo "Info: Pre-check PASSED, Valid ROM structure detected."
                   exit 0
               else
