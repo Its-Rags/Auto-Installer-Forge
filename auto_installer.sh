@@ -1178,7 +1178,8 @@ else
 	update_field "SECURITY_PATCH" "Security patch"
 	update_field "ROM_VERSION" "ROM Build version"
     echo -e "\nChoose root method present in ROM:\n"
-    echo -e "1) With root (KSU-N - Kernel SU NEXT)"
+    echo -e "0) With root (KSU-N - Kernel SU NEXT v3.1.0)"
+    echo -e "1) With root (KSU-N - Kernel SU NEXT v1.1.1)"
     echo -e "2) With root (KSU - Kernel SU)"
     echo -e "3) With root (SukiSU-Ultra)"
     echo -e "4) Without root\n"
@@ -1187,7 +1188,7 @@ else
     read -r ROOT_TYPE
     case $ROOT_TYPE in
         [0-4]) echo; break ;;
-        *) echo -e "Invalid input. Please enter a number between 0 and 4.\n" ;;
+        *) echo -e "Invalid input. Please enter a number from 0 to 4.\n" ;;
     esac
     done
 
