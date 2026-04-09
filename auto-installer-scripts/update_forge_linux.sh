@@ -181,14 +181,54 @@ log_file="logs/auto-installer_log_$(date +'%Y-%m-%d_%H-%M-%S').txt"
 clear
 print_log_ascii
 echo -e "${YELLOW}Waiting for device...${RESET}" | tee -a "$log_file"
-device=$($fastboot getvar product 2>&1 | grep -oP '(?<=product: )\S+')
+device_pulse=$($fastboot getvar product 2>&1)
+device=$(echo "$device_pulse" | grep -oP '(?<=product: )\S+')
+if [[ "$device_pulse" == *"no link"* ]]; then
+    echo
+    echo -e "${YELLOW}fastboot output: $device_pulse${RESET}" | tee -a "$log_file"
+    echo
+    echo -e "${YELLOW}Please restart to bootloader Mode (Fastboot on screen), reconnect, and re-run Auto-Installer${RESET}" | tee -a "$log_file"
+    echo -e "${YELLOW}For manually rebooting to bootloader, keep pressing Power + Volume Down Button${RESET}" | tee -a "$log_file"
+    echo -e "${YELLOW}Then Re-run the Auto-Installer${RESET}" | tee -a "$log_file"
+    echo
+    read -n 1 -s -r -p "Press any key to exit..."
+    exit 1
+fi
 if [ "$device" != "nabu" ]; then
-	echo
-    echo -e "${YELLOW}Compatible devices: nabu${RESET}" | tee -a "$log_file"
-    echo -e "${RED}Your device: $device${RESET}" | tee -a "$log_file"
-	echo
-    echo -e "${YELLOW}Please connect your Xiaomi Pad 5 - Nabu${RESET}" | tee -a "$log_file"
-	echo
+    echo
+    echo -e "${RED}Is it nabu?${RESET}" | tee -a "$log_file"
+    echo -e "${RED}Is it really our beloved Xiaomi Pad 5?${RESET}" | tee -a "$log_file"
+    echo -e "${YELLOW}Device is not recognized as 'nabu - Xiaomi Pad 5'${RESET}" | tee -a "$log_file"
+    echo -e "${YELLOW}Device details: $device_pulse${RESET}" | tee -a "$log_file"
+    echo -e "${RED}You need to connect Xiaomi Pad 5 (nabu)${RESET}" | tee -a "$log_file"
+    echo
+    read -n 1 -s -r -p "Press any key to exit..."
+    exit 1
+fi
+unlocked_hope=$($fastboot getvar unlocked 2>&1)
+unlocked=$(echo "$unlocked_hope" | grep -oP '(?<=unlocked: )\S+')
+if [ "$unlocked" != "yes" ]; then
+    echo
+    if [ "$unlocked" == "no" ]; then
+        echo -e "${YELLOW}Bootloader is locked.${RESET}" | tee -a "$log_file"
+    else
+        echo -e "${YELLOW}Unknown bootloader state detected.${RESET}" | tee -a "$log_file"
+    fi
+    echo -e "${YELLOW}Please unlock the bootloader and re-run the Auto-Installer${RESET}" | tee -a "$log_file"
+    choice=$(get_input "\nNeed help unlocking bootloader? open bootloader unlock guide ${YELLOW}No(n) - Yes(y)${RESET}: ")
+    if [[ "$choice" == "y" ]]; then
+        echo -e "${YELLOW}Redirecting to bootloader unlock guide...\n${RESET}" | tee -a "$log_file"
+        echo -e "${YELLOW}in case browser not open. Please ctrl + click below or copy the link manually.\n${RESET}" | tee -a "$log_file"
+        echo -e "${YELLOW}Link: https://github.com/ArKT-7/ArKT-Guides/blob/main/Xiaomi-unlock-bootloader-en.md${RESET}" | tee -a "$log_file"
+        if command -v xdg-open &> /dev/null; then
+            xdg-open "https://github.com/ArKT-7/ArKT-Guides/blob/main/Xiaomi-unlock-bootloader-en.md" &> /dev/null
+        elif command -v python3 &> /dev/null; then
+            python3 -m webbrowser "https://github.com/ArKT-7/ArKT-Guides/blob/main/Xiaomi-unlock-bootloader-en.md" &> /dev/null
+        fi
+    else
+        echo -e "${YELLOW}Ok then bye, meet you again, hope you unlock your device first\n${RESET}" | tee -a "$log_file"
+    fi
+    echo
     read -n 1 -s -r -p "Press any key to exit..."
     exit 1
 fi
