@@ -137,38 +137,47 @@ get_input() {
     if [[ "$first_char" == "y" ]]; then
       echo "y"
       return 0
-    elif [[ "$first_char" == "c" ]]; then
+    elif [[ "$first_char" == "c" || "$first_char" == "n" ]]; then
       echo "c"
       return 0
     else
-      echo -e "${RED}Invalid choice.${RESET} ${YELLOW}Please enter 'Y' or 'C'${RESET}"
+      echo -e "${RED}Invalid choice.${RESET} ${YELLOW}Please enter 'Y' to download or 'C' to cancel.${RESET}"
       echo
     fi
   done
 }
-if [[ ! -f "$check_flag" ]]; then
-  choice=$(get_input "${YELLOW}Do you want to download dependencies online or ${GREEN}continue? ${YELLOW}(Y/C): ${RESET}")
+fastboot="${extract_folder}platform-tools/fastboot"
+check_fastboot() {
+    if [ -f "$fastboot" ]; then
+        chmod +x "$fastboot"
+        if "$fastboot" --version &> /dev/null; then
+            return 0
+        fi
+    fi
+    return 1
+}
+if ! check_fastboot; then
+  choice=$(get_input "${YELLOW}Dependency (fastboot) missing or corrupted. Download it now? ${GREEN}(Y/C): ${RESET}")
   if [[ "$choice" == "y" ]]; then
     download_dependencies
-  fi
-else
-  choice=$(get_input "${YELLOW}Do you want to download dependencies again (Y) or ${GREEN}continue (C)? ${RESET}")
-  if [[ "$choice" == "y" ]]; then
-    download_dependencies
-  fi
-fi
-fastboot="${extract_folder}/platform-tools/fastboot"
-chmod -R +x "$extract_folder"
-log_file="logs/auto-installer_log_$(date +'%Y-%m-%d_%H-%M-%S').txt"
-if [ ! -f "$fastboot" ]; then
+    if ! check_fastboot; then
+        echo
+        echo -e "${RED}ERROR! Failed to set up fastboot properly after downloading${RESET}"
+        echo -e "Installation aborted"
+        echo -e "Press any key to exit..."
+        read -n 1 -s
+        exit 1
+    fi
+  else
     echo
-    echo -e "${RED}$fastboot not found.${RESET}" | tee -a "$log_file"
-	echo
-	echo -e "let's proceed with downloading." | tee -a "$log_file"
-    download_dependencies ;
-	chmod -R +x "$extract_folder"
-	chmod +x "$fastboot"
+    echo -e "${RED}Cannot proceed without fastboot dependency${RESET}"
+    echo -e "Installation cancelled"
+    echo -e "Press any key to exit..."
+    read -n 1 -s
+    exit 1
+  fi
 fi
+log_file="logs/auto-installer_log_$(date +'%Y-%m-%d_%H-%M-%S').txt"
 clear
 print_log_ascii
 echo -e "${YELLOW}Waiting for device...${RESET}" | tee -a "$log_file"
