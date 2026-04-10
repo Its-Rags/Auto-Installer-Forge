@@ -7,7 +7,7 @@
 # Define URLs and target paths for binaries
 BASE_URL="https://raw.githubusercontent.com/arkt-7/Auto-Installer-Forge/main"
 URL_BUSYBOX="$BASE_URL/bin/linux_amd64/busybox"
-URL_PAYLOAD_DUMPER="$BASE_URL/bin/linux_amd64/payload-dumper-go"
+URL_PAYLOAD_DUMPER="$BASE_URL/bin/linux_amd64/otaripper"
 URL_LPMAKE="$BASE_URL/bin/linux_amd64/lpmake"
 URL_LPUNPACK="$BASE_URL/bin/linux_amd64/lpunpack"
 URL_FIGLET="$BASE_URL/bin/linux_amd64/figlet"
@@ -592,7 +592,7 @@ fi
 
 # Download required binaries
 download_and_set_permissions "$URL_BUSYBOX" "$BIN_DIR/busybox"
-download_and_set_permissions "$URL_PAYLOAD_DUMPER" "$BIN_DIR/payload-dumper-go"
+download_and_set_permissions "$URL_PAYLOAD_DUMPER" "$BIN_DIR/otaripper"
 download_and_set_permissions "$URL_LPMAKE" "$BIN_DIR/lpmake"
 download_and_set_permissions "$URL_LPUNPACK" "$BIN_DIR/lpunpack"
 download_and_set_permissions "$URL_FIGLET" "$BIN_DIR/figlet"
@@ -692,12 +692,13 @@ if [ "$ROM_TYPE" = "payload" ]; then
     log "[INFO] Extracting payload.bin..."
     echo " "
     if [ -n "$1" ]; then
-        $BIN_DIR/payload-dumper-go -l "$PAYLOAD_FILE"
-        $BIN_DIR/payload-dumper-go -o "$TARGET_DIR" "$PAYLOAD_FILE" > /dev/null 2>&1 || { log "[ERROR] Extraction failed!"; exit 1; }
+        $BIN_DIR/otaripper -l "$PAYLOAD_FILE"
+        $BIN_DIR/otaripper -n -o "$TARGET_DIR" "$PAYLOAD_FILE" > /dev/null 2>&1 || { log "[ERROR] Extraction failed!"; exit 1; }
     else
-        $BIN_DIR/payload-dumper-go -o "$TARGET_DIR" "$PAYLOAD_FILE" || { log "[ERROR] Extraction failed!"; exit 1; }
+        $BIN_DIR/otaripper -n -o "$TARGET_DIR" "$PAYLOAD_FILE" || { log "[ERROR] Extraction failed!"; exit 1; }
     fi
-    FILES_TO_CLEANUP=("$PAYLOAD_FILE")
+    mv "$TARGET_DIR"/extracted_*/* "$TARGET_DIR"/
+    rm -rf "$TARGET_DIR"/extracted_*
 
 else
     log "[INFO] Fastboot ROM detected. Extracting all files Please wait..."
@@ -791,28 +792,49 @@ else
 
     rm "$TARGET_DIR/super.img"
     $BIN_DIR/busybox find "$TARGET_DIR" -maxdepth 1 -name "*_b.img" -type f -size 0c -delete
-    FILES_TO_CLEANUP=() 
     log "[SUCCESS] Fastboot images prepared."
 fi
 log "[SUCCESS] Extraction completed."
 
-log "[INFO] Generating original checksums..."
+log "[INFO] Renaming partition images for super.img..."
 for img in system vendor mi_ext odm system_ext product; do
     if [ -f "$TARGET_DIR/${img}.img" ]; then
         $BIN_DIR/busybox mv "$TARGET_DIR/${img}.img" "$TARGET_DIR/${img}_a.img"
     fi
 done
-checksum_files=()
+
+part_files=()
 for img in system vendor mi_ext odm system_ext product; do
     if [ -f "$TARGET_DIR/${img}_a.img" ]; then
-        checksum_files+=("$TARGET_DIR/${img}_a.img")
+        part_files+=("$TARGET_DIR/${img}_a.img")
     fi
 done
-$BIN_DIR/busybox sha256sum "${checksum_files[@]}" > "$TARGET_DIR/original_checksums.txt"
-echo -e "[SUCCESS] Checksums generated."
+
+if [ -n "$2" ] && [ -f "$2" ]; then
+    VERIFY_SUPER=$(grep '^VERIFY_SUPER=' "$2" | awk -F'=' '{print $2}' | awk '{print $1}')
+else
+    echo -e "\nVerify super.img integrity? (Extracts & hashes to ensure no corruption, but takes MUCH longer):"
+    echo -e "1) Yes (Slower, but safe)"
+    echo -e "2) No (Blazing fast, skips verification)\n"
+    while true; do
+        echo -n "Enter the number (1-2): "
+        read -r VERIFY_CHOICE
+        case $VERIFY_CHOICE in
+            1) VERIFY_SUPER=1; echo; break ;;
+            2) VERIFY_SUPER=0; echo; break ;;
+            *) echo -e "Invalid input. Please enter 1 or 2.\n" ;;
+        esac
+    done
+fi
+
+if [ "${VERIFY_SUPER:-0}" -eq 1 ]; then
+    log "[INFO] Generating original checksums..."
+    $BIN_DIR/busybox sha256sum "${part_files[@]}" > "$TARGET_DIR/original_checksums.txt"
+    echo -e "[SUCCESS] Checksums generated."
+fi
 
 log "[INFO] Calculating total partition size with buffer..."
-TOTAL_SIZE=$($BIN_DIR/busybox du -b "${checksum_files[@]}" | $BIN_DIR/busybox awk '{sum += $1} END {print sum + (24 * 1024 * 1024); exit}')
+TOTAL_SIZE=$($BIN_DIR/busybox du -b "${part_files[@]}" | $BIN_DIR/busybox awk '{sum += $1} END {print sum + (24 * 1024 * 1024); exit}')
 echo -e "Total size (with buffer): $TOTAL_SIZE"
 
 log "[INFO] Creating super.img..."
@@ -857,42 +879,46 @@ echo -e "[SUCCESS] Truncation complete."
 
 log "[INFO] Cleaning up payload.bin extracted img's..."
 if [ -n "$PAYLOAD_FILE" ]; then
-    rm_files=("${checksum_files[@]}" "$PAYLOAD_FILE")
+    rm_files=("${part_files[@]}" "$PAYLOAD_FILE")
 else
-    rm_files=("${checksum_files[@]}")
+    rm_files=("${part_files[@]}")
 fi
 $BIN_DIR/busybox rm -f "${rm_files[@]}"
 echo -e "[SUCCESS] Cleanup complete."
 
-log "[INFO] Extracting super.img..."
-$BIN_DIR/busybox mkdir -p "$TARGET_DIR/super_extracted"
-$BIN_DIR/lpunpack "$TARGET_DIR/super.img" "$TARGET_DIR/super_extracted" || { log "[ERROR] Extraction failed!"; exit 1; }
-echo -e "[SUCCESS] super.img extracted."
+if [ "${VERIFY_SUPER:-0}" -eq 1 ]; then
+    log "[INFO] Verifying super.img integrity (Extract & Hash)..."
+    $BIN_DIR/busybox mkdir -p "$TARGET_DIR/super_extracted"
+    $BIN_DIR/lpunpack "$TARGET_DIR/super.img" "$TARGET_DIR/super_extracted" || { log "[ERROR] Extraction failed!"; exit 1; }
+    echo -e "[SUCCESS] super.img extracted."
 
-log "[INFO] Generating new checksums..."
-new_checksum_files=()
-for img in system vendor mi_ext odm system_ext product; do
-    if [ -f "$TARGET_DIR/super_extracted/${img}_a.img" ]; then
-        new_checksum_files+=("$TARGET_DIR/super_extracted/${img}_a.img")
-    fi
-done
-$BIN_DIR/busybox sha256sum "${new_checksum_files[@]}" > "$TARGET_DIR/new_checksums.txt"
-echo -e "[SUCCESS] Checksums generated."
+    log "[INFO] Generating new checksums..."
+    new_checksum_files=()
+    for img in system vendor mi_ext odm system_ext product; do
+        if [ -f "$TARGET_DIR/super_extracted/${img}_a.img" ]; then
+            new_checksum_files+=("$TARGET_DIR/super_extracted/${img}_a.img")
+        fi
+    done
+    $BIN_DIR/busybox sha256sum "${new_checksum_files[@]}" > "$TARGET_DIR/new_checksums.txt"
+    echo -e "[SUCCESS] Checksums generated."
 
-log "[INFO] Normalizing checksums for comparison..."
-$BIN_DIR/busybox sed -E "s|(_a)?\.img|.img|" "$TARGET_DIR/original_checksums.txt" | $BIN_DIR/busybox sed -E "s|$TARGET_DIR|/tmp|" > "$TARGET_DIR/original_checksums_norm.txt"
-$BIN_DIR/busybox sed -E "s|(_a)?\.img|.img|" "$TARGET_DIR/new_checksums.txt" | $BIN_DIR/busybox sed -E "s|$TARGET_DIR/super_extracted|/tmp|" > "$TARGET_DIR/new_checksums_norm.txt"
+    log "[INFO] Normalizing checksums for comparison..."
+    $BIN_DIR/busybox sed -E "s|(_a)?\.img|.img|" "$TARGET_DIR/original_checksums.txt" | $BIN_DIR/busybox sed -E "s|$TARGET_DIR|/tmp|" > "$TARGET_DIR/original_checksums_norm.txt"
+    $BIN_DIR/busybox sed -E "s|(_a)?\.img|.img|" "$TARGET_DIR/new_checksums.txt" | $BIN_DIR/busybox sed -E "s|$TARGET_DIR/super_extracted|/tmp|" > "$TARGET_DIR/new_checksums_norm.txt"
 
-log "[INFO] Comparing checksums..."
-$BIN_DIR/busybox diff "$TARGET_DIR/original_checksums_norm.txt" "$TARGET_DIR/new_checksums_norm.txt" || log "[WARNING] Checksum mismatch detected!"
-echo -e "[SUCCESS] Checksum comparison complete."
+    log "[INFO] Comparing checksums..."
+    $BIN_DIR/busybox diff "$TARGET_DIR/original_checksums_norm.txt" "$TARGET_DIR/new_checksums_norm.txt" || log "[WARNING] Checksum mismatch detected!"
+    echo -e "[SUCCESS] Checksum comparison complete."
+    
+    log "[INFO] Cleaning up verification files..."
+    $BIN_DIR/busybox rm -rf "$TARGET_DIR/super_extracted"
+    $BIN_DIR/busybox rm -f "$TARGET_DIR/original_checksums.txt" "$TARGET_DIR/new_checksums.txt" "$TARGET_DIR/original_checksums_norm.txt" "$TARGET_DIR/new_checksums_norm.txt" 
+    echo -e "[SUCCESS] Verification cleanup complete."
+else
+    log "[INFO] Skipping super.img verification (Fast Mode enabled)."
+fi
 
 log "[COMPLETED] super.img prepared to use in fastboot/recovery!"
-
-log "[INFO] Cleaning up..."
-$BIN_DIR/busybox rm -rf "$TARGET_DIR/super_extracted"
-$BIN_DIR/busybox rm -f "$TARGET_DIR/original_checksums.txt" "$TARGET_DIR/new_checksums.txt" "$TARGET_DIR/original_checksums_norm.txt" "$TARGET_DIR/new_checksums_norm.txt" 
-echo -e "[SUCCESS] Cleanup complete."
 
 log "[INFO] Now will contrust folder/files and Download Scripts as required for Auto Installer!\n"
 
@@ -1073,10 +1099,10 @@ log "[INFO] Now will Download KernelSU NEXT and Magisk APK for ROOT access!\n"
 #     "KernelSU_Next_v1.1.1.apk"
 
 download_with_fallback \
-    "https://github.com/topjohnwu/Magisk/releases/download/v30.6/Magisk-v30.6.apk" \
-    "$BASE_URL/files/Magisk_v30.6.apk" \
-    "$TARGET_DIR/ROOT_APK_INSATLL_THIS_ONLY/Magisk_v30.6.apk" \
-    "Magisk-v30.6.apk"
+    "https://github.com/topjohnwu/Magisk/releases/download/v30.7/Magisk-v30.7.apk" \
+    "$BASE_URL/files/Magisk_v30.7.apk" \
+    "$TARGET_DIR/ROOT_APK_INSATLL_THIS_ONLY/Magisk_v30.7.apk" \
+    "Magisk-v30.7.apk"
 
 
 CONF_FILE="$TARGET_DIR/META-INF/autoinstaller.conf"
@@ -1087,9 +1113,9 @@ else
     echo -e "\nUsing default $CONF_FILE"
 fi
 
-extract_magisk_tools "Magisk_v30.6.apk"
+extract_magisk_tools "Magisk_v30.7.apk"
 patch_twrp_recovery "$2"
-patch_magisk_boot "Magisk_v30.6.apk"
+patch_magisk_boot "Magisk_v30.7.apk"
 
 IMAGES_DIR="$TARGET_DIR/images"
 
@@ -1152,16 +1178,17 @@ else
 	update_field "SECURITY_PATCH" "Security patch"
 	update_field "ROM_VERSION" "ROM Build version"
     echo -e "\nChoose root method present in ROM:\n"
-    echo -e "1) With root (KSU-N - Kernel SU NEXT)"
+    echo -e "0) With root (KSU-N - Kernel SU NEXT v3.1.0)"
+    echo -e "1) With root (KSU-N - Kernel SU NEXT v1.1.1)"
     echo -e "2) With root (KSU - Kernel SU)"
     echo -e "3) With root (SukiSU-Ultra)"
     echo -e "4) Without root\n"
     while true; do
-    echo -n "Enter the number (1-4): "
+    echo -n "Enter the number (0-4): "
     read -r ROOT_TYPE
     case $ROOT_TYPE in
-        [1-4]) echo; break ;;
-        *) echo -e "Invalid input. Please enter a number between 1 and 4.\n" ;;
+        [0-4]) echo; break ;;
+        *) echo -e "Invalid input. Please enter a number from 0 to 4.\n" ;;
     esac
     done
 
@@ -1179,9 +1206,19 @@ else
     [ "$FORMAT_MODE" -eq 1 ] && FORMAT_MODE=0 || FORMAT_MODE=1
     $BIN_DIR/busybox sed -i "s/^FORMAT_DEFAULT=.*/FORMAT_DEFAULT=$FORMAT_MODE  # set 1 if want format default selected/" "$CONF_FILE"
 fi
+$BIN_DIR/busybox sed -i "s/^VERIFY_SUPER=.*/VERIFY_SUPER=${VERIFY_SUPER:-0}  # set 1 to enable slow super.img extraction and hashing/" "$CONF_FILE"
+
 case "$ROOT_TYPE" in
+  0) root="Root with (KSU-N - Kernel SU NEXT)"
+    log "[INFO] Selected Kernel SU NEXT v3.1.0, Downloading APK..."
+    download_with_fallback \
+        "https://github.com/KernelSU-Next/KernelSU-Next/releases/download/v3.1.0/KernelSU_Next_v3.1.0-spoofed_33024-release.apk" \
+        "$BASE_URL/files/KernelSU_Next_v3.1.0.apk" \
+        "$TARGET_DIR/ROOT_APK_INSATLL_THIS_ONLY/KernelSU_Next_v3.1.0.apk" \
+        "KernelSU_Next_v3.1.0.apk"
+    ;;
   1) root="Root with (KSU-N - Kernel SU NEXT)"
-    log "[INFO] Selected Kernel SU NEXT, Downloading APK..."
+    log "[INFO] Selected Kernel SU NEXT v1.1.1, Downloading APK..."
     download_with_fallback \
         "https://github.com/KernelSU-Next/KernelSU-Next/releases/download/v1.1.1/KernelSU_Next_v1.1.1_12851-release.apk" \
         "$BASE_URL/files/KernelSU_Next_v1.1.1.apk" \

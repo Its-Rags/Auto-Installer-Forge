@@ -43,11 +43,12 @@ on:
       root_type:
         description: 'Select root method present in ROM'
         required: true
-        default: 'Kernel Su Next'
+        default: 'KernelSu Next v3.1.0'
         type: choice
         options:
-          - Kernel Su Next
-          - Kernel Su
+          - KernelSu Next v3.1.0
+          - KernelSu Next v1.1.1
+          - KernelSu 1.0.1
           - Sukisu-Ultra
           - No Root
       format_default:
@@ -58,6 +59,14 @@ on:
         options:
           - Dirty Flash (Update only - keeps user data)
           - Clean Flash (Factory reset - wipes all data)
+      verify_super:
+        description: 'Verify super.img integrity? (Extracts & hashes, takes MUCH longer)'
+        required: true
+        default: 'No'
+        type: choice
+        options:
+          - 'Yes'
+          - 'No'
       install_twrp:
         description: 'Integrate TWRP? (ONLY if kernel supports it! Else bootloop to fastboot)'
         required: true
@@ -79,19 +88,19 @@ jobs:
         id: PeekXtract_check
         run: |
           echo "Downloading PeekXtract..."
-          curl -L -o PeekXtract https://github.com/ArKT-7/PeekXtract/releases/download/v2.0.3/PeekXtract
+          curl -L -o PeekXtract https://github.com/ArKT-7/PeekXtract/releases/download/v2.0.4/PeekXtract
           chmod +x PeekXtract
           URL="${{ github.event.inputs.rom_zip_url }}"
           echo "Scanning Remote ZIP: $URL"
 
           set +e
-          echo "q" | ./PeekXtract "$URL" 2>&1 | tee PeekXtract_log.txt
+          ./PeekXtract "$URL" --e-txt 2>&1 | tee PeekXtract_log.txt
           set -e
           echo "Analyzing PeekXtract results..."
           
-          if grep -Fq "Download Options:" PeekXtract_log.txt; then
+          if grep -Fq "Export complete" PeekXtract_log.txt; then
               echo "PeekXtract successfully inspected the ZIP."
-              if grep -qE "payload\.bin|super\.(img|zst|img\.zst)" PeekXtract_log.txt; then
+              if grep -qE "payload\.bin|super\.(img|zst|img\.zst)" peekxtract_files_dump.txt; then
                   echo "Info: Pre-check PASSED, Valid ROM structure detected."
                   exit 0
               else
@@ -135,11 +144,12 @@ jobs:
       - name: Map input strings to numbers for updating variables in conf
         run: |
           case "${{ github.event.inputs.root_type }}" in
-            "Kernel Su Next") ROOT_TYPE=1; ROOT_LABEL="Kernel Su Next" ;;
-            "Kernel Su") ROOT_TYPE=2; ROOT_LABEL="Kernel Su" ;;
+            "KernelSu Next v3.1.0") ROOT_TYPE=0; ROOT_LABEL="Kernel Su Next" ;;
+            "KernelSu Next v1.1.1") ROOT_TYPE=1; ROOT_LABEL="Kernel Su Next" ;;
+            "KernelSu 1.0.1") ROOT_TYPE=2; ROOT_LABEL="Kernel Su" ;;
             "Sukisu-Ultra") ROOT_TYPE=3; ROOT_LABEL="Sukisu-Ultra" ;;
             "No Root") ROOT_TYPE=4; ROOT_LABEL="No Root" ;;
-            *) ROOT_TYPE=1; ROOT_LABEL="Kernel Su Next" ;;
+            *) ROOT_TYPE=0; ROOT_LABEL="Kernel Su Next" ;;
           esac
           echo "ROOT_TYPE=$ROOT_TYPE" >> $GITHUB_ENV
 
@@ -149,6 +159,15 @@ jobs:
             *) FORMAT_MODE=0; FORMAT_LABEL="Update" ;;
           esac
           echo "FORMAT_MODE=$FORMAT_MODE" >> $GITHUB_ENV
+
+          if [ "${{ github.event.inputs.verify_super }}" == "Yes" ]; then
+            VERIFY_SUPER=1
+            VERIFY_LABEL="Yes"
+          else
+            VERIFY_SUPER=0
+            VERIFY_LABEL="No (Faster)"
+          fi
+          echo "VERIFY_SUPER=$VERIFY_SUPER" >> $GITHUB_ENV
 
           if [ "${{ github.event.inputs.install_twrp }}" == "Yes" ]; then
             INSTALL_TWRP=1
@@ -161,6 +180,7 @@ jobs:
 
           echo "Root method selected: $ROOT_LABEL"
           echo "Format type selected: $FORMAT_LABEL"
+          echo "Verify Super.img selected: $VERIFY_LABEL"
           echo "Install TWRP selected: $TWRP_LABEL"
 
       - name: Generate autoinstaller.conf
@@ -207,6 +227,7 @@ jobs:
           )
           
           FORMAT_DEFAULT=${{ env.FORMAT_MODE }}  # set 1 if want format default selected 
+          VERIFY_SUPER=${{ env.VERIFY_SUPER }}
           INSTALL_TWRP=${{ env.INSTALL_TWRP }}
           SELECTION_TIMEOUT=15  # Seconds to wait before auto-selecting default menu option
           CHAR_WIDTH=54  		  # Max characters per printed line (used for text centering and wrapping)
