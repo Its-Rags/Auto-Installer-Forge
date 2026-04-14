@@ -1180,15 +1180,16 @@ else
     echo -e "\nChoose root method present in ROM:\n"
     echo -e "0) With root (KSU-N - Kernel SU NEXT v3.1.0)"
     echo -e "1) With root (KSU-N - Kernel SU NEXT v1.1.1)"
-    echo -e "2) With root (KSU - Kernel SU)"
-    echo -e "3) With root (SukiSU-Ultra)"
-    echo -e "4) Without root\n"
+    echo -e "2) With root (KSU - Kernel SU v1.0.5-80-legacy)"
+    echo -e "3) With root (KSU - Kernel SU v1.0.1)"
+    echo -e "4) With root (SukiSU-Ultra)"
+    echo -e "5) Without root\n"
     while true; do
-    echo -n "Enter the number (0-4): "
+    echo -n "Enter the number (0-5): "
     read -r ROOT_TYPE
     case $ROOT_TYPE in
-        [0-4]) echo; break ;;
-        *) echo -e "Invalid input. Please enter a number from 0 to 4.\n" ;;
+        [0-5]) echo; break ;;
+        *) echo -e "Invalid input. Please enter a number from 0 to 5.\n" ;;
     esac
     done
 
@@ -1209,7 +1210,7 @@ fi
 $BIN_DIR/busybox sed -i "s/^VERIFY_SUPER=.*/VERIFY_SUPER=${VERIFY_SUPER:-0}  # set 1 to enable slow super.img extraction and hashing/" "$CONF_FILE"
 
 case "$ROOT_TYPE" in
-  0) root="Root with (KSU-N - Kernel SU NEXT)"
+  0) root="Root with (KSU-N - Kernel SU NEXT v3.1.0)"
     log "[INFO] Selected Kernel SU NEXT v3.1.0, Downloading APK..."
     download_with_fallback \
         "https://github.com/KernelSU-Next/KernelSU-Next/releases/download/v3.1.0/KernelSU_Next_v3.1.0-spoofed_33024-release.apk" \
@@ -1217,7 +1218,7 @@ case "$ROOT_TYPE" in
         "$TARGET_DIR/ROOT_APK_INSATLL_THIS_ONLY/KernelSU_Next_v3.1.0.apk" \
         "KernelSU_Next_v3.1.0.apk"
     ;;
-  1) root="Root with (KSU-N - Kernel SU NEXT)"
+  1) root="Root with (KSU-N - Kernel SU NEXT v1.1.1)"
     log "[INFO] Selected Kernel SU NEXT v1.1.1, Downloading APK..."
     download_with_fallback \
         "https://github.com/KernelSU-Next/KernelSU-Next/releases/download/v1.1.1/KernelSU_Next_v1.1.1_12851-release.apk" \
@@ -1225,15 +1226,23 @@ case "$ROOT_TYPE" in
         "$TARGET_DIR/ROOT_APK_INSATLL_THIS_ONLY/KernelSU_Next_v1.1.1.apk" \
         "KernelSU_Next_v1.1.1.apk"
     ;;
-  2) root="Root with (KSU - Kernel SU)"
-    log "[INFO] Selected Kernel SU, Downloading APK..."
+  2) root="Root with (KSU - Kernel SU v1.0.5-80-legacy)"
+    log "[INFO] Selected Kernel SU v1.0.5-80-legacy, Downloading APK..."
+    download_with_fallback \
+        "https://github.com/rsuntk/KernelSU/releases/download/v1.0.5-80-legacy/KernelSU_v1.0.5-80-legacy_12328-release.apk" \
+        "$BASE_URL/files/KernelSU_v1.0.5-80-legacy.apk" \
+        "$TARGET_DIR/ROOT_APK_INSATLL_THIS_ONLY/KernelSU_v1.0.5-80-legacy.apk" \
+        "KernelSU_v1.0.5-80-legacy.apk"
+    ;;
+  3) root="Root with (KSU - Kernel SU v1.0.1)"
+    log "[INFO] Selected Kernel SU v1.0.1, Downloading APK..."
     download_with_fallback \
         "https://github.com/tiann/KernelSU/releases/download/v1.0.1/KernelSU_v1.0.1_11928-release.apk" \
         "$BASE_URL/files/KernelSU_v1.0.1.apk" \
         "$TARGET_DIR/ROOT_APK_INSATLL_THIS_ONLY/KernelSU_v1.0.1.apk" \
         "KernelSU_v1.0.1.apk"
     ;;
-  3) root="Root with (SukiSU-Ultra)"
+  4) root="Root with (SukiSU-Ultra)"
     log "[INFO] Selected SukiSU-Ultra, Downloading APK..."
     download_with_fallback \
         "https://github.com/SukiSU-Ultra/SukiSU-Ultra/releases/download/v3.1.6/SukiSU_v3.1.6_13165-release.apk" \
@@ -1241,13 +1250,13 @@ case "$ROOT_TYPE" in
         "$TARGET_DIR/ROOT_APK_INSATLL_THIS_ONLY/SukiSU_v3.1.6.apk" \
         "SukiSU_v3.1.6.apk"
     ;;
-  4) root="Without root" ;;
-  *) root="Root with (KSU-N - Kernel SU NEXT)"
+  5) root="Without root" ;;
+  *) root="Root with (KSU-N - Kernel SU NEXT v3.1.0)"
     download_with_fallback \
-        "https://github.com/KernelSU-Next/KernelSU-Next/releases/download/v1.1.1/KernelSU_Next_v1.1.1_12851-release.apk" \
-        "$BASE_URL/files/KernelSU_Next_v1.1.1.apk" \
-        "$TARGET_DIR/ROOT_APK_INSATLL_THIS_ONLY/KernelSU_Next_v1.1.1.apk" \
-        "KernelSU_Next_v1.1.1.apk"
+        "https://github.com/KernelSU-Next/KernelSU-Next/releases/download/v3.1.0/KernelSU_Next_v3.1.0-spoofed_33024-release.apk" \
+        "$BASE_URL/files/KernelSU_Next_v3.1.0.apk" \
+        "$TARGET_DIR/ROOT_APK_INSATLL_THIS_ONLY/KernelSU_Next_v3.1.0.apk" \
+        "KernelSU_Next_v3.1.0.apk"
     ;;
 esac
 
