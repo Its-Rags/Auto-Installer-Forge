@@ -48,7 +48,8 @@ on:
         options:
           - KernelSu Next v3.1.0
           - KernelSu Next v1.1.1
-          - KernelSu 1.0.1
+          - KernelSu v1.0.5-80-legacy
+          - KernelSu v1.0.1
           - Sukisu-Ultra
           - No Root
       format_default:
@@ -144,12 +145,13 @@ jobs:
       - name: Map input strings to numbers for updating variables in conf
         run: |
           case "${{ github.event.inputs.root_type }}" in
-            "KernelSu Next v3.1.0") ROOT_TYPE=0; ROOT_LABEL="Kernel Su Next" ;;
-            "KernelSu Next v1.1.1") ROOT_TYPE=1; ROOT_LABEL="Kernel Su Next" ;;
-            "KernelSu 1.0.1") ROOT_TYPE=2; ROOT_LABEL="Kernel Su" ;;
-            "Sukisu-Ultra") ROOT_TYPE=3; ROOT_LABEL="Sukisu-Ultra" ;;
-            "No Root") ROOT_TYPE=4; ROOT_LABEL="No Root" ;;
-            *) ROOT_TYPE=0; ROOT_LABEL="Kernel Su Next" ;;
+            "KernelSu Next v3.1.0") ROOT_TYPE=0; ROOT_LABEL="Kernel Su Next v3.1.0" ;;
+            "KernelSu Next v1.1.1") ROOT_TYPE=1; ROOT_LABEL="Kernel Su Next v1.1.1" ;;
+            "KernelSu v1.0.5-80-legacy") ROOT_TYPE=2; ROOT_LABEL="Kernel Su v1.0.5-80-legacy" ;;
+            "KernelSu v1.0.1") ROOT_TYPE=3; ROOT_LABEL="Kernel Su v1.0.1" ;;
+            "Sukisu-Ultra") ROOT_TYPE=4; ROOT_LABEL="Sukisu-Ultra" ;;
+            "No Root") ROOT_TYPE=5; ROOT_LABEL="No Root" ;;
+            *) ROOT_TYPE=0; ROOT_LABEL="Kernel Su Next v3.1.0" ;;
           esac
           echo "ROOT_TYPE=$ROOT_TYPE" >> $GITHUB_ENV
 
@@ -223,7 +225,7 @@ jobs:
           ROOT_TYPE=${{ env.ROOT_TYPE }}
           root_options_filename=(
             "Root with idk" "boot" "dtbo"
-            "Root with Magisk v30.6" "magisk_boot" "dtbo"
+            "Root with Magisk v30.7" "magisk_boot" "dtbo"
           )
           
           FORMAT_DEFAULT=${{ env.FORMAT_MODE }}  # set 1 if want format default selected 
